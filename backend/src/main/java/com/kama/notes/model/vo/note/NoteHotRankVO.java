@@ -10,7 +10,6 @@ import java.time.LocalDateTime;
 @Data
 public class NoteHotRankVO {
     private Integer noteId;
-    private String content;
     private String displayContent;
     private Integer likeCount;
     private Integer commentCount;

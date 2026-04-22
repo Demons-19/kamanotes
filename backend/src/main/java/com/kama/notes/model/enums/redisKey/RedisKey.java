@@ -92,9 +92,13 @@ public class RedisKey {
         return "note:detail:" + noteId;
     }
 
-    public static String noteReviewStream() {
-        return "stream:note:review";
+    /**
+     * 用户登录态基础信息 Redis 键名
+     */
+    public static String userSessionProfile(Long userId) {
+        return "user:session:profile:" + userId;
     }
+
 
     public static String noteReviewGroup() {
         return "group:note:review";

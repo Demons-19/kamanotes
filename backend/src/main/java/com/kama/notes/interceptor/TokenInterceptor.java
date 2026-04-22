@@ -18,6 +18,8 @@ import com.kama.notes.utils.JwtUtil;
 @Component
 public class TokenInterceptor implements HandlerInterceptor
 {
+    private static final long USER_SESSION_PROFILE_TTL_SECONDS = 600;
+
     @Autowired
     private RequestScopeData requestScopeData;
 
@@ -58,15 +60,15 @@ public class TokenInterceptor implements HandlerInterceptor
             return true;
         }
 
-        User user = userMapper.findById(userId);
-        if (user == null) {
+        UserSessionProfile profile = getUserSessionProfile(userId);
+        if (profile == null) {
             return true;
         }
 
         requestScopeData.setUserId(userId);
         requestScopeData.setToken(token);
         requestScopeData.setLogin(true);
-        requestScopeData.setBanned(UserBanned.IS_BANNED.equals(user.getIsBanned()));
+        requestScopeData.setBanned(profile.banned());
 
         if (!requestScopeData.isBanned() && jwtUtil.shouldRefreshToken(token)) {
             String refreshedToken = jwtUtil.refreshToken(userId);
@@ -78,6 +80,23 @@ public class TokenInterceptor implements HandlerInterceptor
         return HandlerInterceptor.super.preHandle(request, response, handler);
     }
 
+    private UserSessionProfile getUserSessionProfile(Long userId) {
+        String cacheKey = RedisKey.userSessionProfile(userId);
+        Object cached = redisService.get(cacheKey);
+        if (cached instanceof UserSessionProfile profile) {
+            return profile;
+        }
+
+        User user = userMapper.findById(userId);
+        if (user == null) {
+            return null;
+        }
+
+        UserSessionProfile profile = new UserSessionProfile(UserBanned.IS_BANNED.equals(user.getIsBanned()));
+        redisService.setWithExpiry(cacheKey, profile, USER_SESSION_PROFILE_TTL_SECONDS);
+        return profile;
+    }
+
     private void initRequestScope() {
         requestScopeData.setLogin(false);
         requestScopeData.setToken(null);
@@ -85,4 +104,6 @@ public class TokenInterceptor implements HandlerInterceptor
         requestScopeData.setBanned(false);
         requestScopeData.setRefreshedToken(null);
     }
+
+    private record UserSessionProfile(boolean banned) {}
 }

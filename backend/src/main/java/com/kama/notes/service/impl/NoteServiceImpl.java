@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Log4j2
@@ -47,6 +48,7 @@ public class NoteServiceImpl implements NoteService {
     @Autowired private Cache<String, Object> noteLocalCache;
     @Autowired private NoteReviewQueueService noteReviewQueueService;
     private static final String LK="note:like_count:",CK="note:collect_count:",MK="note:comment_count:";
+    private final Map<String,Object> hotRankBuildLocks=new ConcurrentHashMap<>();
 
     @Override
     public ApiResponse<List<NoteVO>> getNotes(NoteQueryParams p){
@@ -127,15 +129,22 @@ public class NoteServiceImpl implements NoteService {
         if(localCached!=null)return ApiResponseUtil.success("获取笔记热榜成功",localCached);
         List<NoteHotRankVO> redisCached=getCachedHotRankList(redisService.get(cacheKey));
         if(redisCached!=null){noteLocalCache.put(cacheKey,redisCached);return ApiResponseUtil.success("获取笔记热榜成功",redisCached);}
-        List<NoteHotRankVO> data=buildHotRankList(limit);
-        redisService.setWithExpiry(cacheKey,data,300+new Random().nextInt(120));
-        noteLocalCache.put(cacheKey,data);
-        return ApiResponseUtil.success("获取笔记热榜成功",data);
+        Object lock=hotRankBuildLocks.computeIfAbsent(cacheKey,key->new Object());
+        synchronized(lock){
+            localCached=getCachedHotRankList(noteLocalCache.getIfPresent(cacheKey));
+            if(localCached!=null)return ApiResponseUtil.success("获取笔记热榜成功",localCached);
+            redisCached=getCachedHotRankList(redisService.get(cacheKey));
+            if(redisCached!=null){noteLocalCache.put(cacheKey,redisCached);return ApiResponseUtil.success("获取笔记热榜成功",redisCached);}
+            List<NoteHotRankVO> data=buildHotRankList(limit);
+            redisService.setWithExpiry(cacheKey,data,300+new Random().nextInt(120));
+            noteLocalCache.put(cacheKey,data);
+            return ApiResponseUtil.success("获取笔记热榜成功",data);
+        }
     }
 
     @Override public void updateNoteHotScore(Integer noteId){noteHotRankService.updateNoteHotScore(noteId);evictHotRankCache();}
     @Override public void removeNoteFromHotRank(Integer noteId){noteHotRankService.removeNoteFromHotRank(noteId);evictHotRankCache();}
-    @Override public void evictHotRankCache(){for(Integer limit:List.of(3,10,50)){String key=RedisKey.noteHotRankList(limit);redisService.delete(key);noteLocalCache.invalidate(key);}}
+    @Override public void evictHotRankCache(){for(Integer limit:List.of(3,10,50)){String key=RedisKey.noteHotRankList(limit);redisService.delete(key);noteLocalCache.invalidate(key);hotRankBuildLocks.remove(key);}}
 
     private List<NoteHotRankVO> buildHotRankList(Integer limit){
         Set<ZSetOperations.TypedTuple<Object>> tuples=redisService.zReverseRangeWithScores(RedisKey.noteHotRank(),0,limit-1);
