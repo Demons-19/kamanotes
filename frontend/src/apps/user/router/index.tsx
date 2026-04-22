@@ -13,6 +13,7 @@ import {
   USER_NOTE,
   MESSAGE_CENTER,
   NOTE_HOT_RANK,
+  NOTE_DETAIL,
 } from './config.ts'
 import { NotFound } from '../../../base/components'
 import HomePage from '../pages/home/HomePage.tsx'
@@ -26,6 +27,7 @@ import UserHomePage from '../pages/userHome/UserHomePage.tsx'
 import QuestionListPage from '../pages/questionList/QuestionListPage.tsx'
 import MessagePage from '@/apps/user/pages/message/MessagePage.tsx'
 import NoteHotRankPage from '../pages/noteHotRank/NoteHotRankPage.tsx'
+import NoteDetailPage from '../pages/noteDetail/NoteDetailPage.tsx'
 
 export const UserRouteConfig = (
   <Route path={HOME} element={<UserApp />}>
@@ -42,6 +44,7 @@ export const UserRouteConfig = (
     <Route path={`${USER_HOME}/:userId`} element={<UserHomePage />} />
     <Route path={`${QUESTION_LIST}`} element={<QuestionListPage />} />
     <Route path={NOTE_HOT_RANK} element={<NoteHotRankPage />} />
+    <Route path={`${NOTE_DETAIL}/:noteId`} element={<NoteDetailPage />} />
     <Route path={MESSAGE_CENTER} element={<MessagePage />} />
     <Route path="/*" element={<NotFound />} />
   </Route>

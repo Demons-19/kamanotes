@@ -14,10 +14,10 @@ spring:
     timeout: 10000
     jedis:
       pool:
-        enabled: on
-        max-active: 64
-        max-idle: 32
-        min-idle: 8
+        enabled: true
+        max-active: 128
+        max-idle: 64
+        min-idle: 16
         max-wait: 2000
   mail:
     host: smtp.qq.com
@@ -66,6 +66,12 @@ jwt:
 
 server:
   port: 8080
+  tomcat:
+    threads:
+      max: 300
+      min-spare: 20
+    accept-count: 1000
+    connection-timeout: 20000
 
 # 自定义邮件配置
 mail:

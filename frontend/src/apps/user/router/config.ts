@@ -38,6 +38,11 @@ export const QUESTION = '/questions'
 export const NOTE_HOT_RANK = '/hot-notes'
 
 /**
+ * 笔记详情
+ */
+export const NOTE_DETAIL = '/notes'
+
+/**
  * 消息中心
  */
 export const MESSAGE_CENTER = '/messages'

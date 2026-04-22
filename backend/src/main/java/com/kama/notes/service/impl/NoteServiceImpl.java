@@ -122,17 +122,39 @@ public class NoteServiceImpl implements NoteService {
 
     @Override
     public ApiResponse<List<NoteHotRankVO>> getHotRank(Integer limit){
-        Set<ZSetOperations.TypedTuple<Object>> tuples=redisService.zReverseRangeWithScores(RedisKey.noteHotRank(),0,limit-1);
-        if(CollectionUtils.isEmpty(tuples))return ApiResponseUtil.success("获取笔记热榜成功",Collections.emptyList());
-        List<Integer> ids=tuples.stream().map(t->Integer.parseInt(String.valueOf(t.getValue()))).toList();List<Note> notes=noteMapper.findByIdBatch(ids);fillRealtimeCounts(notes);
-        Map<Integer,Note> noteMap=notes.stream().collect(Collectors.toMap(Note::getNoteId,n->n));Map<Long,User> users=userService.getUserMapByIds(notes.stream().map(Note::getAuthorId).distinct().toList());Map<Integer,Question> qs=questionService.getQuestionMapByIds(notes.stream().map(Note::getQuestionId).distinct().toList());
-        List<NoteHotRankVO> data=tuples.stream().map(t->{Note n=noteMap.get(Integer.parseInt(String.valueOf(t.getValue())));if(n==null)return null;NoteHotRankVO vo=new NoteHotRankVO();BeanUtils.copyProperties(n,vo);vo.setHotScore(t.getScore());vo.setDisplayContent(MarkdownUtil.extractIntroduction(n.getContent()));User u=users.get(n.getAuthorId());if(u!=null){NoteHotRankVO.SimpleAuthorVO a=new NoteHotRankVO.SimpleAuthorVO();BeanUtils.copyProperties(u,a);vo.setAuthor(a);}Question q=qs.get(n.getQuestionId());if(q!=null){NoteHotRankVO.SimpleQuestionVO qq=new NoteHotRankVO.SimpleQuestionVO();BeanUtils.copyProperties(q,qq);vo.setQuestion(qq);}return vo;}).filter(Objects::nonNull).toList();
+        String cacheKey=RedisKey.noteHotRankList(limit);
+        List<NoteHotRankVO> localCached=getCachedHotRankList(noteLocalCache.getIfPresent(cacheKey));
+        if(localCached!=null)return ApiResponseUtil.success("获取笔记热榜成功",localCached);
+        List<NoteHotRankVO> redisCached=getCachedHotRankList(redisService.get(cacheKey));
+        if(redisCached!=null){noteLocalCache.put(cacheKey,redisCached);return ApiResponseUtil.success("获取笔记热榜成功",redisCached);}
+        List<NoteHotRankVO> data=buildHotRankList(limit);
+        redisService.setWithExpiry(cacheKey,data,300+new Random().nextInt(120));
+        noteLocalCache.put(cacheKey,data);
         return ApiResponseUtil.success("获取笔记热榜成功",data);
     }
 
     @Override public void updateNoteHotScore(Integer noteId){noteHotRankService.updateNoteHotScore(noteId);evictHotRankCache();}
     @Override public void removeNoteFromHotRank(Integer noteId){noteHotRankService.removeNoteFromHotRank(noteId);evictHotRankCache();}
-    @Override public void evictHotRankCache(){Set<String> keys=redisService.keys(RedisKey.noteHotRankListPattern());if(!CollectionUtils.isEmpty(keys))keys.forEach(redisService::delete);}
+    @Override public void evictHotRankCache(){Set<String> keys=redisService.keys(RedisKey.noteHotRankListPattern());if(!CollectionUtils.isEmpty(keys))keys.forEach(redisService::delete);List<String> localKeys=noteLocalCache.asMap().keySet().stream().filter(key->key.startsWith("note:hot:rank:list:")).toList();if(!CollectionUtils.isEmpty(localKeys))noteLocalCache.invalidateAll(localKeys);}
+
+    private List<NoteHotRankVO> buildHotRankList(Integer limit){
+        Set<ZSetOperations.TypedTuple<Object>> tuples=redisService.zReverseRangeWithScores(RedisKey.noteHotRank(),0,limit-1);
+        if(CollectionUtils.isEmpty(tuples))return Collections.emptyList();
+        List<Integer> ids=tuples.stream().map(t->Integer.parseInt(String.valueOf(t.getValue()))).toList();
+        List<Note> notes=noteMapper.findByIdBatch(ids);
+        fillRealtimeCounts(notes);
+        Map<Integer,Note> noteMap=notes.stream().collect(Collectors.toMap(Note::getNoteId,n->n));
+        Map<Long,User> users=userService.getUserMapByIds(notes.stream().map(Note::getAuthorId).distinct().toList());
+        Map<Integer,Question> qs=questionService.getQuestionMapByIds(notes.stream().map(Note::getQuestionId).distinct().toList());
+        return tuples.stream().map(t->{Note n=noteMap.get(Integer.parseInt(String.valueOf(t.getValue())));if(n==null)return null;NoteHotRankVO vo=new NoteHotRankVO();BeanUtils.copyProperties(n,vo);vo.setHotScore(t.getScore());vo.setDisplayContent(MarkdownUtil.extractIntroduction(n.getContent()));User u=users.get(n.getAuthorId());if(u!=null){NoteHotRankVO.SimpleAuthorVO a=new NoteHotRankVO.SimpleAuthorVO();BeanUtils.copyProperties(u,a);vo.setAuthor(a);}Question q=qs.get(n.getQuestionId());if(q!=null){NoteHotRankVO.SimpleQuestionVO qq=new NoteHotRankVO.SimpleQuestionVO();BeanUtils.copyProperties(q,qq);vo.setQuestion(qq);}return vo;}).filter(Objects::nonNull).toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<NoteHotRankVO> getCachedHotRankList(Object cacheObj){
+        if(!(cacheObj instanceof List<?> list))return null;
+        if(list.isEmpty())return Collections.emptyList();
+        return list.stream().allMatch(NoteHotRankVO.class::isInstance)?(List<NoteHotRankVO>) list:null;
+    }
 
     private NoteVO buildBaseNoteVO(Note note){fillRealtimeCounts(note);return toNoteVO(note,userService.getUserMapByIds(Collections.singletonList(note.getAuthorId())),questionService.getQuestionMapByIds(Collections.singletonList(note.getQuestionId())),Collections.emptySet(),Collections.emptySet());}
     private NoteVO fillUserActions(NoteVO base){NoteVO vo=new NoteVO();BeanUtils.copyProperties(base,vo);vo.setAuthor(base.getAuthor());vo.setQuestion(base.getQuestion());NoteVO.UserActionsVO ua=new NoteVO.UserActionsVO();if(requestScopeData.isLogin()&&requestScopeData.getUserId()!=null){Long uid=requestScopeData.getUserId();ua.setIsLiked(noteLikeService.findUserLikedNoteIds(uid,Collections.singletonList(base.getNoteId())).contains(base.getNoteId()));ua.setIsCollected(collectionNoteService.findUserCollectedNoteIds(uid,Collections.singletonList(base.getNoteId())).contains(base.getNoteId()));}vo.setUserActions(ua);return vo;}

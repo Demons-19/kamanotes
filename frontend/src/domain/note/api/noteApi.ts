@@ -2,6 +2,7 @@ import { ApiList } from '../../../request'
 
 export const noteApiList: ApiList = {
   getNoteList: ['GET', '/api/notes'],
+  getNoteDetail: ['GET', '/api/notes/{noteId}'],
   createNote: ['POST', '/api/notes'],
   updateNote: ['PATCH', '/api/notes/{noteId}'],
   deleteNote: ['DELETE', '/api/notes/{noteId}'],

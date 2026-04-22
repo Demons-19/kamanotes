@@ -22,6 +22,15 @@ export const noteService = {
   },
 
   /**
+   * 获取笔记详情服务
+   */
+  getNoteDetailService: (noteId: number) => {
+    return httpClient.request<NoteWithRelations>(noteApiList.getNoteDetail, {
+      pathParams: [noteId],
+    })
+  },
+
+  /**
    * 创建笔记服务
    */
   createNoteService: (params: CreateNoteParams) => {

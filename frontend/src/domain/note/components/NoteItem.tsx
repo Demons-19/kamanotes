@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { NoteWithRelations } from '../types/serviceTypes.ts'
+import { useNavigate } from 'react-router-dom'
+import { NOTE_DETAIL } from '../../../apps/user/router/config.ts'
 
 import AuthorCard from './AuthorCard.tsx'
 import { QuestionCard } from '../../question'
@@ -39,6 +41,7 @@ const NoteItem: React.FC<NoteItemProps> = ({
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const navigate = useNavigate()
 
   const toggleCollapsed = () => {
     setIsCollapsed(!isCollapsed)
@@ -91,7 +94,16 @@ const NoteItem: React.FC<NoteItemProps> = ({
         {isCollapsed ? (
           <DisplayContent displayContent={note?.displayContent ?? ''} />
         ) : (
-          <NoteContent note={note} />
+          <div
+            className="cursor-pointer"
+            onClick={() => {
+              if (note?.noteId) {
+                navigate(`${NOTE_DETAIL}/${note.noteId}`)
+              }
+            }}
+          >
+            <NoteContent note={note} />
+          </div>
         )}
         {note?.needCollapsed && (
           <ExpandButton

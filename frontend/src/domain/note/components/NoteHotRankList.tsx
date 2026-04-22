@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { NoteHotRankItem } from '../types/serviceTypes.ts'
 import { BronzeTrophy, GoldTrophy, SliverTrophy } from '../../../base/icon'
 import { noteService } from '../service/noteService.ts'
-import { USER_HOME, QUESTION } from '@/apps/user/router/config.ts'
+import { USER_HOME, QUESTION, NOTE_DETAIL } from '@/apps/user/router/config.ts'
 
 interface NoteHotRankListProps {
   limit?: number
@@ -82,6 +82,15 @@ const NoteHotRankList: React.FC<NoteHotRankListProps> = ({
               title={item.question?.title || ''}
             >
               {item.question?.title || '（未关联题目）'}
+            </div>
+            <div
+              className="cursor-pointer text-sm text-neutral-500 hover:text-neutral-700"
+              onClick={() => {
+                navigate(`${NOTE_DETAIL}/${item.noteId}`)
+              }}
+              title={item.displayContent || item.content || ''}
+            >
+              {item.displayContent || item.content}
             </div>
             <div className="flex items-center gap-2">
               <Avatar
