@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.kama.notes.mapper.CommentMapper">
+
+    <sql id="selectFields">
+        comment_id, root_comment_id, note_id, author_id, parent_id, reply_to_user_id, content, like_count, reply_count, created_at, updated_at
+    </sql>
+
+    <resultMap id="commentMap" type="com.kama.notes.model.entity.Comment">
+        <id property="commentId" column="comment_id"/>
+        <result property="rootCommentId" column="root_comment_id"/>
+        <result property="noteId" column="note_id"/>
+        <result property="authorId" column="author_id"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="replyToUserId" column="reply_to_user_id"/>
+        <result property="content" column="content"/>
+        <result property="likeCount" column="like_count"/>
+        <result property="replyCount" column="reply_count"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="commentId">
+        INSERT INTO comment (root_comment_id, note_id, author_id, parent_id, reply_to_user_id, content,
+                             like_count, reply_count, created_at, updated_at)
+        VALUES (#{rootCommentId}, #{noteId}, #{authorId}, #{parentId}, #{replyToUserId}, #{content},
+                #{likeCount}, #{replyCount}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE comment
+        <set>
+            <if test="content != null">content = #{content},</if>
+            <if test="likeCount != null">like_count = #{likeCount},</if>
+            <if test="replyCount != null">reply_count = #{replyCount},</if>
+            <if test="replyToUserId != null">reply_to_user_id = #{replyToUserId},</if>
+            <if test="rootCommentId != null">root_comment_id = #{rootCommentId},</if>
+            updated_at = CURRENT_TIMESTAMP
+        </set>
+        WHERE comment_id = #{commentId}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM comment WHERE comment_id = #{commentId}
+    </delete>
+
+    <select id="findById" resultMap="commentMap">
+        SELECT * FROM comment WHERE comment_id = #{commentId}
+    </select>
+
+    <select id="findByNoteId" resultMap="commentMap">
+        SELECT <include refid="selectFields"/>
+        FROM comment WHERE note_id = #{noteId}
+    </select>
+
+    <select id="findTopLevelByNoteId" resultMap="commentMap">
+        SELECT <include refid="selectFields"/>
+        FROM comment
+        WHERE note_id = #{noteId}
+          AND (parent_id IS NULL OR parent_id = 0)
+        <choose>
+            <when test="sort == 'hot'">
+                ORDER BY like_count DESC, reply_count DESC, created_at DESC
+            </when>
+            <otherwise>
+                ORDER BY created_at DESC
+            </otherwise>
+        </choose>
+        LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+
+    <select id="countTopLevelByNoteId" resultType="int">
+        SELECT COUNT(*)
+        FROM comment
+        WHERE note_id = #{noteId}
+          AND (parent_id IS NULL OR parent_id = 0)
+    </select>
+
+    <select id="findRepliesByRootCommentId" resultMap="commentMap">
+        SELECT <include refid="selectFields"/>
+        FROM comment
+        WHERE root_comment_id = #{rootCommentId}
+          AND comment_id != #{rootCommentId}
+        <choose>
+            <when test="sort == 'desc'">
+                ORDER BY created_at DESC
+            </when>
+            <otherwise>
+                ORDER BY created_at ASC
+            </otherwise>
+        </choose>
+        LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+
+    <select id="countRepliesByRootCommentId" resultType="int">
+        SELECT COUNT(*)
+        FROM comment
+        WHERE root_comment_id = #{rootCommentId}
+          AND comment_id != #{rootCommentId}
+    </select>
+
+    <select id="findByQueryParam" resultMap="commentMap">
+        SELECT * FROM comment
+        <where>
+            <if test="params.noteId != null">AND note_id = #{params.noteId}</if>
+            <if test="params.authorId != null">AND author_id = #{params.authorId}</if>
+        </where>
+        ORDER BY created_at DESC
+        LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+
+    <select id="countByQueryParam" resultType="int">
+        SELECT COUNT(*) FROM comment
+        <where>
+            <if test="params.noteId != null">AND note_id = #{params.noteId}</if>
+            <if test="params.parentId != null">AND parent_id = #{params.parentId}</if>
+            <if test="params.authorId != null">AND author_id = #{params.authorId}</if>
+        </where>
+    </select>
+
+    <update id="incrementLikeCount">
+        UPDATE comment SET like_count = like_count + 1
+        WHERE comment_id = #{commentId}
+    </update>
+
+    <update id="decrementLikeCount">
+        UPDATE comment SET like_count = like_count - 1
+        WHERE comment_id = #{commentId} AND like_count > 0
+    </update>
+
+    <update id="incrementReplyCount">
+        UPDATE comment SET reply_count = reply_count + 1
+        WHERE comment_id = #{commentId}
+    </update>
+
+    <update id="decrementReplyCount">
+        UPDATE comment SET reply_count = reply_count - 1
+        WHERE comment_id = #{commentId} AND reply_count > 0
+    </update>
+</mapper>

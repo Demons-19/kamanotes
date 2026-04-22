@@ -1,0 +1,88 @@
+package com.kama.notes.interceptor;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import com.kama.notes.mapper.UserMapper;
+import com.kama.notes.model.entity.User;
+import com.kama.notes.model.enums.redisKey.RedisKey;
+import com.kama.notes.model.enums.user.UserBanned;
+import com.kama.notes.service.RedisService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+import org.springframework.web.servlet.HandlerInterceptor;
+
+import com.kama.notes.scope.RequestScopeData;
+import com.kama.notes.utils.JwtUtil;
+
+@Component
+public class TokenInterceptor implements HandlerInterceptor
+{
+    @Autowired
+    private RequestScopeData requestScopeData;
+
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    @Autowired
+    private RedisService redisService;
+
+    @Autowired
+    private UserMapper userMapper;
+
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        initRequestScope();
+
+        String token = request.getHeader("Authorization");
+
+        if (token == null || token.trim().isEmpty()) {
+            return true;
+        }
+
+        token = token.replace("Bearer ", "").trim();
+        if (token.isEmpty()) {
+            return true;
+        }
+
+        if (redisService.exists(RedisKey.jwtBlacklist(token))) {
+            return true;
+        }
+
+        if (!jwtUtil.validateToken(token)) {
+            return true;
+        }
+
+        Long userId = jwtUtil.getUserIdFromToken(token);
+        if (userId == null) {
+            return true;
+        }
+
+        User user = userMapper.findById(userId);
+        if (user == null) {
+            return true;
+        }
+
+        requestScopeData.setUserId(userId);
+        requestScopeData.setToken(token);
+        requestScopeData.setLogin(true);
+        requestScopeData.setBanned(UserBanned.IS_BANNED.equals(user.getIsBanned()));
+
+        if (!requestScopeData.isBanned() && jwtUtil.shouldRefreshToken(token)) {
+            String refreshedToken = jwtUtil.refreshToken(userId);
+            requestScopeData.setRefreshedToken(refreshedToken);
+            response.setHeader("X-Refresh-Token", refreshedToken);
+            response.setHeader("Access-Control-Expose-Headers", "X-Refresh-Token");
+        }
+
+        return HandlerInterceptor.super.preHandle(request, response, handler);
+    }
+
+    private void initRequestScope() {
+        requestScopeData.setLogin(false);
+        requestScopeData.setToken(null);
+        requestScopeData.setUserId(null);
+        requestScopeData.setBanned(false);
+        requestScopeData.setRefreshedToken(null);
+    }
+}
