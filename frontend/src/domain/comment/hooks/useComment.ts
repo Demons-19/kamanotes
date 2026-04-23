@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   CommentQueryParams,
   Comment,
@@ -27,10 +27,12 @@ export function useComment(commentQueryParams: CommentQueryParams) {
   const [hasMore, setHasMore] = useState(false)
   const [nextCursor, setNextCursor] = useState<NextCursor | null>(null)
   const [replyStates, setReplyStates] = useState<Record<number, ReplyState>>({})
+  const requestIdRef = useRef(0)
 
   const user = useUser()
 
   async function loadComments(reset = false, cursor?: NextCursor) {
+    const requestId = ++requestIdRef.current
     try {
       setLoading(true)
       const params: CommentQueryParams = {
@@ -45,16 +47,24 @@ export function useComment(commentQueryParams: CommentQueryParams) {
         params.cursorReplyCount = cursor.replyCount
       }
       const res = await commentService.getCommentsService(params)
+      if (requestId !== requestIdRef.current) {
+        return
+      }
       const data = res.data
       setComments((prev) => (reset ? data.items : [...prev, ...data.items]))
       setHasMore(data.hasMore)
       setNextCursor(data.nextCursor)
     } catch (error: unknown) {
+      if (requestId !== requestIdRef.current) {
+        return
+      }
       if (error instanceof Error) {
         console.log(error.message)
       }
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -215,7 +225,10 @@ export function useComment(commentQueryParams: CommentQueryParams) {
       if (params.parentId !== undefined && params.parentId !== 0) {
         return insertReplyToTopLevel(prev, params.parentId, newComment)
       }
-      return [newComment, ...prev]
+      if ((commentQueryParams.sort ?? 'hot') === 'latest') {
+        return [newComment, ...prev]
+      }
+      return prev
     })
 
     const resp = await commentService.createCommentService(params)

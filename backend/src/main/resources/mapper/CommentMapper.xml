@@ -82,41 +82,35 @@
     </select>
 
     <select id="findTopLevelByNoteIdCursor" resultMap="commentMap">
-        SELECT c.<include refid="selectFields"/>
-        FROM comment c
-        INNER JOIN (
-            SELECT comment_id
-            FROM comment
-            WHERE note_id = #{noteId}
-              AND (parent_id IS NULL OR parent_id = 0)
-            <if test="params.cursorCreatedAt != null or params.cursorCommentId != null or params.cursorLikeCount != null or params.cursorReplyCount != null">
-                <choose>
-                    <when test="sort == 'hot'">
-                        AND (like_count, reply_count, created_at, comment_id) &lt; (#{params.cursorLikeCount}, #{params.cursorReplyCount}, #{params.cursorCreatedAt}, #{params.cursorCommentId})
-                    </when>
-                    <otherwise>
-                        AND (created_at, comment_id) &lt; (#{params.cursorCreatedAt}, #{params.cursorCommentId})
-                    </otherwise>
-                </choose>
-            </if>
-            <choose>
-                <when test="sort == 'hot'">
-                    ORDER BY like_count DESC, reply_count DESC, created_at DESC, comment_id DESC
-                </when>
-                <otherwise>
-                    ORDER BY created_at DESC, comment_id DESC
-                </otherwise>
-            </choose>
-            LIMIT #{pageSize}
-        ) t ON c.comment_id = t.comment_id
+        SELECT <include refid="selectFields"/>
+        FROM comment
+        WHERE note_id = #{noteId}
+          AND (parent_id IS NULL OR parent_id = 0)
+        <choose>
+            <when test="sort == 'hot' and params.cursorLikeCount != null and params.cursorReplyCount != null and params.cursorCreatedAt != null and params.cursorCommentId != null">
+                AND (
+                    like_count &lt; #{params.cursorLikeCount}
+                    OR (like_count = #{params.cursorLikeCount} AND reply_count &lt; #{params.cursorReplyCount})
+                    OR (like_count = #{params.cursorLikeCount} AND reply_count = #{params.cursorReplyCount} AND created_at &lt; #{params.cursorCreatedAt})
+                    OR (like_count = #{params.cursorLikeCount} AND reply_count = #{params.cursorReplyCount} AND created_at = #{params.cursorCreatedAt} AND comment_id &lt; #{params.cursorCommentId})
+                )
+            </when>
+            <when test="sort != 'hot' and params.cursorCreatedAt != null and params.cursorCommentId != null">
+                AND (
+                    created_at &lt; #{params.cursorCreatedAt}
+                    OR (created_at = #{params.cursorCreatedAt} AND comment_id &lt; #{params.cursorCommentId})
+                )
+            </when>
+        </choose>
         <choose>
             <when test="sort == 'hot'">
-                ORDER BY c.like_count DESC, c.reply_count DESC, c.created_at DESC, c.comment_id DESC
+                ORDER BY like_count DESC, reply_count DESC, created_at DESC, comment_id DESC
             </when>
             <otherwise>
-                ORDER BY c.created_at DESC, c.comment_id DESC
+                ORDER BY created_at DESC, comment_id DESC
             </otherwise>
         </choose>
+        LIMIT #{pageSize}
     </select>
 
     <select id="countTopLevelByNoteId" resultType="int">

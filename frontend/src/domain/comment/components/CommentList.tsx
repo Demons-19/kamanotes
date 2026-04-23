@@ -271,9 +271,7 @@ const CommentList: React.FC<CommentListProps> = ({ noteId }) => {
 
       <div>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-medium text-gray-900">
-            评论 ({comments?.length ?? 0})
-          </h3>
+          <h3 className="text-lg font-medium text-gray-900">评论</h3>
           <Segmented
             value={commentQueryParams.sort}
             options={[

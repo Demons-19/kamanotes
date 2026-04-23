@@ -234,12 +234,14 @@ public class CommentServiceImpl implements CommentService {
     public ApiResponse<CursorCommentListVO> getComments(CommentQueryParams params) {
         try {
             String normalizedSort = normalizeTopLevelSort(params.getSort());
-            int querySize = params.getPageSize() + 1;
+            int pageSize = params.getPageSize() == null || params.getPageSize() < 1 ? 10 : Math.min(params.getPageSize(), 50);
+            params.setPageSize(pageSize);
+            int querySize = pageSize + 1;
             List<Comment> topLevelComments = commentMapper.findTopLevelByNoteIdCursor(
                     params.getNoteId(), normalizedSort, querySize, params);
-            boolean hasMore = topLevelComments.size() > params.getPageSize();
+            boolean hasMore = topLevelComments.size() > pageSize;
             List<Comment> items = hasMore
-                    ? topLevelComments.subList(0, params.getPageSize())
+                    ? topLevelComments.subList(0, pageSize)
                     : topLevelComments;
 
             if (items.isEmpty()) {
