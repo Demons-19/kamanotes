@@ -106,7 +106,12 @@ const NoteList: React.FC<NoteListProps> = ({
       ))}
       {noteList.length > 0 && (
         <div className="flex justify-center">
-          <Pagination total={pagination?.total} onChange={handlePageChange} />
+          <Pagination
+            current={queryParams.page ?? 1}
+            pageSize={queryParams.pageSize ?? pagination?.pageSize}
+            total={pagination?.total}
+            onChange={handlePageChange}
+          />
         </div>
       )}
       {noteList.length === 0 && <Empty description={'暂无笔记'} />}

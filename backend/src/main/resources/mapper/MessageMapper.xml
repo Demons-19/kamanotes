@@ -45,8 +45,18 @@
         FROM message
         <where>
             receiver_id = #{userId}
-            <if test="params.type != null">
-                AND type = #{params.type}
+            <if test="params.type != null and params.type != ''">
+                <choose>
+                    <when test="params.type == 'comment'">
+                        AND type IN (2, 5)
+                    </when>
+                    <when test="params.type == 'system'">
+                        AND type IN (3, 6)
+                    </when>
+                    <otherwise>
+                        AND type = #{params.type}
+                    </otherwise>
+                </choose>
             </if>
             <if test="params.isRead != null">
                 AND is_read = #{params.isRead}
@@ -68,8 +78,18 @@
         FROM message
         <where>
             receiver_id = #{userId}
-            <if test="params.type != null">
-                AND type = #{params.type}
+            <if test="params.type != null and params.type != ''">
+                <choose>
+                    <when test="params.type == 'comment'">
+                        AND type IN (2, 5)
+                    </when>
+                    <when test="params.type == 'system'">
+                        AND type IN (3, 6)
+                    </when>
+                    <otherwise>
+                        AND type = #{params.type}
+                    </otherwise>
+                </choose>
             </if>
             <if test="params.isRead != null">
                 AND is_read = #{params.isRead}

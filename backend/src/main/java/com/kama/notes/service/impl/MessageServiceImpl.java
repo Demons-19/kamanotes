@@ -5,7 +5,9 @@ import com.kama.notes.mapper.NoteMapper;
 import com.kama.notes.mapper.UserMapper;
 import com.kama.notes.model.base.ApiResponse;
 import com.kama.notes.model.base.EmptyVO;
+import com.kama.notes.model.base.Pagination;
 import com.kama.notes.model.dto.message.MessageDTO;
+import com.kama.notes.model.dto.message.MessageQueryParams;
 import com.kama.notes.model.dto.user.UserQueryParam;
 import com.kama.notes.model.entity.Message;
 import com.kama.notes.model.entity.Note;
@@ -20,6 +22,8 @@ import com.kama.notes.service.MessageService;
 import com.kama.notes.service.QuestionService;
 import com.kama.notes.service.UserService;
 import com.kama.notes.utils.MessageBuilder;
+import com.kama.notes.utils.PaginationUtils;
+import com.kama.notes.utils.ApiResponseUtil;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -56,11 +60,9 @@ public class MessageServiceImpl implements MessageService {
         try {
             Message message = new Message();
             BeanUtils.copyProperties(messageDTO, message);
-
             if (messageDTO.getContent() == null) {
                 message.setContent("");
             }
-
             return messageMapper.insert(message);
         } catch (Exception e) {
             throw new RuntimeException("创建消息通知失败: " + e.getMessage());
@@ -118,10 +120,67 @@ public class MessageServiceImpl implements MessageService {
     }
 
     @Override
-    public ApiResponse<List<MessageVO>> getMessages() {
+    public ApiResponse<List<MessageVO>> getMessages(MessageQueryParams params) {
         Long currentUserId = requestScopeData.getUserId();
-        List<Message> messages = messageMapper.selectByUserId(currentUserId);
+        int page = params.getPage() == null || params.getPage() < 1 ? 1 : params.getPage();
+        int pageSize = params.getPageSize() == null || params.getPageSize() < 1 ? 10 : Math.min(params.getPageSize(), 50);
+        params.setPage(page);
+        params.setPageSize(pageSize);
+        normalizeQueryParams(params);
 
+        int total = messageMapper.countByParams(currentUserId, params);
+        int offset = PaginationUtils.calculateOffset(page, pageSize);
+        List<Message> messages = messageMapper.selectByParams(currentUserId, params, offset);
+        List<MessageVO> messageVOS = buildMessageVOs(messages);
+
+        return ApiResponseUtil.success("获取消息列表成功", messageVOS, new Pagination(page, pageSize, total));
+    }
+
+    @Override
+    public ApiResponse<EmptyVO> markAsRead(Integer messageId) {
+        Long currentUserId = requestScopeData.getUserId();
+        messageMapper.markAsRead(messageId, currentUserId);
+        return ApiResponse.success();
+    }
+
+    @Override
+    public ApiResponse<EmptyVO> markAsReadBatch(List<Integer> messageIds) {
+        Long currentUserId = requestScopeData.getUserId();
+        messageMapper.markAsReadBatch(messageIds, currentUserId);
+        return ApiResponse.success();
+    }
+
+    @Override
+    public ApiResponse<EmptyVO> markAllAsRead() {
+        Long currentUserId = requestScopeData.getUserId();
+        messageMapper.markAllAsRead(currentUserId);
+        return ApiResponse.success();
+    }
+
+    @Override
+    public ApiResponse<EmptyVO> deleteMessage(Integer messageId) {
+        Long currentUserId = requestScopeData.getUserId();
+        messageMapper.deleteMessage(messageId, currentUserId);
+        return ApiResponse.success();
+    }
+
+    @Override
+    public ApiResponse<Integer> getUnreadCount() {
+        Long currentUserId = requestScopeData.getUserId();
+        Integer count = messageMapper.countUnread(currentUserId);
+        return ApiResponse.success(count);
+    }
+
+    private void normalizeQueryParams(MessageQueryParams params) {
+        if (!List.of("created_at", "updated_at").contains(params.getSortField())) {
+            params.setSortField("created_at");
+        }
+        if (!List.of("asc", "desc").contains(params.getSortOrder())) {
+            params.setSortOrder("desc");
+        }
+    }
+
+    private List<MessageVO> buildMessageVOs(List<Message> messages) {
         List<Long> senderIds = messages.stream()
                 .map(Message::getSenderId)
                 .filter(Objects::nonNull)
@@ -132,7 +191,7 @@ public class MessageServiceImpl implements MessageService {
                 ? Collections.emptyMap()
                 : userService.getUserMapByIds(senderIds);
 
-        List<MessageVO> messageVOS = messages.stream().map(message -> {
+        return messages.stream().map(message -> {
             MessageVO messageVO = new MessageVO();
             BeanUtils.copyProperties(message, messageVO);
 
@@ -170,42 +229,5 @@ public class MessageServiceImpl implements MessageService {
 
             return messageVO;
         }).toList();
-
-        return ApiResponse.success(messageVOS);
-    }
-
-    @Override
-    public ApiResponse<EmptyVO> markAsRead(Integer messageId) {
-        Long currentUserId = requestScopeData.getUserId();
-        messageMapper.markAsRead(messageId, currentUserId);
-        return ApiResponse.success();
-    }
-
-    @Override
-    public ApiResponse<EmptyVO> markAsReadBatch(List<Integer> messageIds) {
-        Long currentUserId = requestScopeData.getUserId();
-        messageMapper.markAsReadBatch(messageIds, currentUserId);
-        return ApiResponse.success();
-    }
-
-    @Override
-    public ApiResponse<EmptyVO> markAllAsRead() {
-        Long currentUserId = requestScopeData.getUserId();
-        messageMapper.markAllAsRead(currentUserId);
-        return ApiResponse.success();
-    }
-
-    @Override
-    public ApiResponse<EmptyVO> deleteMessage(Integer messageId) {
-        Long currentUserId = requestScopeData.getUserId();
-        messageMapper.deleteMessage(messageId, currentUserId);
-        return ApiResponse.success();
-    }
-
-    @Override
-    public ApiResponse<Integer> getUnreadCount() {
-        Long currentUserId = requestScopeData.getUserId();
-        Integer count = messageMapper.countUnread(currentUserId);
-        return ApiResponse.success(count);
     }
 }

@@ -15,7 +15,7 @@ export enum TargetType {
 }
 
 export interface MessageQueryParams {
-  type?: MessageType
+  type?: MessageType | string
   isRead?: boolean
   page?: number
   pageSize?: number

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import {
   Tabs,
   Badge,
@@ -11,6 +11,7 @@ import {
   message,
   Modal,
   Input,
+  Pagination,
 } from 'antd'
 import {
   MessageOutlined,
@@ -79,50 +80,44 @@ const messageTypeConfig = {
   },
 }
 
+const tabTypeMap: Record<string, number[] | undefined> = {
+  all: undefined,
+  like: [MessageType.LIKE],
+  comment: [MessageType.COMMENT, MessageType.REPLY],
+  collect: [MessageType.COLLECT],
+  system: [MessageType.SYSTEM, MessageType.ANNOUNCEMENT],
+}
+
 const MessagePage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<string>('all')
   const {
     messages,
+    pagination,
+    page,
+    setPage,
     deleteMessage,
     markMessagesAsRead,
     markAllMessagesAsRead,
     loading,
-  } = useMessages()
+  } = useMessages(activeTab)
   const user = useUser()
   const isAdmin = user.isAdmin === Admin.ADMIN
 
-  const [activeTab, setActiveTab] = useState<string>('all')
   const [announcementOpen, setAnnouncementOpen] = useState(false)
   const [announcementContent, setAnnouncementContent] = useState('')
   const [publishing, setPublishing] = useState(false)
 
-  const groupedMessages = useMemo(() => {
-    const grouped = {
-      all: messages,
-      like: messages.filter((msg) => msg.type === MessageType.LIKE),
-      comment: messages.filter(
-        (msg) =>
-          msg.type === MessageType.COMMENT || msg.type === MessageType.REPLY,
-      ),
-      system: messages.filter(
-        (msg) =>
-          msg.type === MessageType.SYSTEM ||
-          msg.type === MessageType.ANNOUNCEMENT,
-      ),
-      collect: messages.filter((msg) => msg.type === MessageType.COLLECT),
-    }
-    return grouped
-  }, [messages])
+  const currentUnreadCount = useMemo(
+    () => messages.filter((msg) => !msg.isRead).length,
+    [messages],
+  )
 
-  const getUnreadCount = (messageList: typeof messages) => {
-    return messageList.filter((msg) => !msg.isRead).length
-  }
-
-  const handleMessageClick = (message: any) => {
-    if (!message.isRead) {
-      markMessagesAsRead([message.messageId])
+  const handleMessageClick = (messageItem: any) => {
+    if (!messageItem.isRead) {
+      markMessagesAsRead([messageItem.messageId])
     }
-    if (message.target) {
-      console.log('Navigate to:', message.target)
+    if (messageItem.target) {
+      console.log('Navigate to:', messageItem.target)
     }
   }
 
@@ -178,7 +173,7 @@ const MessagePage: React.FC = () => {
     }
   }
 
-  const renderMessageList = (messageList: typeof messages) => {
+  const renderMessageList = () => {
     if (loading) {
       return (
         <div className="flex items-center justify-center py-12">
@@ -187,7 +182,7 @@ const MessagePage: React.FC = () => {
       )
     }
 
-    if (messageList.length === 0) {
+    if (messages.length === 0) {
       return (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -202,13 +197,24 @@ const MessagePage: React.FC = () => {
     }
 
     return (
-      <List
-        dataSource={messageList}
-        renderItem={(item, idx) => renderMessageItem(item, idx)}
-        className="rounded-lg bg-white"
-        itemLayout="horizontal"
-        split={false}
-      />
+      <>
+        <List
+          dataSource={messages}
+          renderItem={(item, idx) => renderMessageItem(item, idx)}
+          className="rounded-lg bg-white"
+          itemLayout="horizontal"
+          split={false}
+        />
+        <div className="mt-6 flex justify-end">
+          <Pagination
+            current={page}
+            pageSize={pagination.pageSize}
+            total={pagination.total}
+            onChange={setPage}
+            showSizeChanger={false}
+          />
+        </div>
+      </>
     )
   }
 
@@ -324,75 +330,11 @@ const MessagePage: React.FC = () => {
   }
 
   const tabItems = [
-    {
-      key: 'all',
-      label: (
-        <span className="flex items-center gap-1">
-          全部
-          {getUnreadCount(groupedMessages.all) > 0 && (
-            <Badge count={getUnreadCount(groupedMessages.all)} size="small" />
-          )}
-        </span>
-      ),
-      children: renderMessageList(groupedMessages.all),
-    },
-    {
-      key: 'like',
-      label: (
-        <span className="flex items-center gap-1">
-          点赞
-          {getUnreadCount(groupedMessages.like) > 0 && (
-            <Badge count={getUnreadCount(groupedMessages.like)} size="small" />
-          )}
-        </span>
-      ),
-      children: renderMessageList(groupedMessages.like),
-    },
-    {
-      key: 'comment',
-      label: (
-        <span className="flex items-center gap-1">
-          评论
-          {getUnreadCount(groupedMessages.comment) > 0 && (
-            <Badge
-              count={getUnreadCount(groupedMessages.comment)}
-              size="small"
-            />
-          )}
-        </span>
-      ),
-      children: renderMessageList(groupedMessages.comment),
-    },
-    {
-      key: 'collect',
-      label: (
-        <span className="flex items-center gap-1">
-          收藏
-          {getUnreadCount(groupedMessages.collect) > 0 && (
-            <Badge
-              count={getUnreadCount(groupedMessages.collect)}
-              size="small"
-            />
-          )}
-        </span>
-      ),
-      children: renderMessageList(groupedMessages.collect),
-    },
-    {
-      key: 'system',
-      label: (
-        <span className="flex items-center gap-1">
-          系统
-          {getUnreadCount(groupedMessages.system) > 0 && (
-            <Badge
-              count={getUnreadCount(groupedMessages.system)}
-              size="small"
-            />
-          )}
-        </span>
-      ),
-      children: renderMessageList(groupedMessages.system),
-    },
+    { key: 'all', label: <span>全部</span>, children: renderMessageList() },
+    { key: 'like', label: <span>点赞</span>, children: renderMessageList() },
+    { key: 'comment', label: <span>评论</span>, children: renderMessageList() },
+    { key: 'collect', label: <span>收藏</span>, children: renderMessageList() },
+    { key: 'system', label: <span>系统</span>, children: renderMessageList() },
   ]
 
   return (
@@ -420,7 +362,7 @@ const MessagePage: React.FC = () => {
                 <Button
                   icon={<CheckCircleOutlined />}
                   onClick={handleMarkAllAsRead}
-                  disabled={getUnreadCount(groupedMessages.all) === 0}
+                  disabled={currentUnreadCount === 0}
                 >
                   全部已读
                 </Button>
@@ -428,22 +370,41 @@ const MessagePage: React.FC = () => {
             </div>
 
             <MessageStats
-              totalMessages={messages.length}
-              unreadCount={messages.filter((item) => !item.isRead).length}
-              likeCount={groupedMessages.like.length}
-              commentCount={groupedMessages.comment.length}
-              collectCount={groupedMessages.collect.length}
-              systemCount={groupedMessages.system.length}
-              unreadLikeCount={getUnreadCount(groupedMessages.like)}
-              unreadCommentCount={getUnreadCount(groupedMessages.comment)}
-              unreadCollectCount={getUnreadCount(groupedMessages.collect)}
-              unreadSystemCount={getUnreadCount(groupedMessages.system)}
+              totalMessages={pagination.total}
+              unreadCount={currentUnreadCount}
+              likeCount={activeTab === 'like' ? pagination.total : 0}
+              commentCount={activeTab === 'comment' ? pagination.total : 0}
+              collectCount={activeTab === 'collect' ? pagination.total : 0}
+              systemCount={activeTab === 'system' ? pagination.total : 0}
+              unreadLikeCount={activeTab === 'like' ? currentUnreadCount : 0}
+              unreadCommentCount={
+                activeTab === 'comment' ? currentUnreadCount : 0
+              }
+              unreadCollectCount={
+                activeTab === 'collect' ? currentUnreadCount : 0
+              }
+              unreadSystemCount={
+                activeTab === 'system' ? currentUnreadCount : 0
+              }
             />
 
             <Tabs
               activeKey={activeTab}
-              onChange={setActiveTab}
-              items={tabItems}
+              onChange={(key) => {
+                setActiveTab(key)
+                setPage(1)
+              }}
+              items={tabItems.map((item) => ({
+                ...item,
+                label: (
+                  <span className="flex items-center gap-1">
+                    {item.label}
+                    {activeTab === item.key && currentUnreadCount > 0 && (
+                      <Badge count={currentUnreadCount} size="small" />
+                    )}
+                  </span>
+                ),
+              }))}
               className="message-tabs"
             />
           </Panel>
