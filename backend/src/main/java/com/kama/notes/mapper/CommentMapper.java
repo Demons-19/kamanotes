@@ -34,7 +34,12 @@ public interface CommentMapper {
                                              @Param("pageSize") Integer pageSize,
                                              @Param("offset") Integer offset);
 
+    List<Comment> findPreviewRepliesByRootCommentIds(@Param("rootCommentIds") List<Integer> rootCommentIds,
+                                                     @Param("limitPerRoot") Integer limitPerRoot);
+
     int countRepliesByRootCommentId(Integer rootCommentId);
+
+    List<Comment> countRepliesByRootCommentIds(@Param("rootCommentIds") List<Integer> rootCommentIds);
 
     List<Comment> findByQueryParam(@Param("params") CommentQueryParams params,
                                    @Param("pageSize") Integer pageSize,

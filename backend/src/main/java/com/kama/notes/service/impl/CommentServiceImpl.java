@@ -241,23 +241,31 @@ public class CommentServiceImpl implements CommentService {
                 return ApiResponseUtil.success("", Collections.emptyList(), new Pagination(params.getPage(), params.getPageSize(), total));
             }
 
-            List<Comment> previewReplies = new ArrayList<>();
-            for (Comment rootComment : topLevelComments) {
-                previewReplies.addAll(commentMapper.findRepliesByRootCommentId(rootComment.getCommentId(), "asc", DEFAULT_PREVIEW_REPLY_LIMIT, 0));
-            }
+            List<Integer> rootCommentIds = topLevelComments.stream()
+                    .map(Comment::getCommentId)
+                    .toList();
+            List<Comment> previewReplies = rootCommentIds.isEmpty()
+                    ? Collections.emptyList()
+                    : commentMapper.findPreviewRepliesByRootCommentIds(rootCommentIds, DEFAULT_PREVIEW_REPLY_LIMIT);
+            Map<Integer, Integer> replyCountMap = rootCommentIds.isEmpty()
+                    ? Collections.emptyMap()
+                    : commentMapper.countRepliesByRootCommentIds(rootCommentIds).stream()
+                            .collect(Collectors.toMap(Comment::getRootCommentId, comment -> Optional.ofNullable(comment.getReplyCount()).orElse(0)));
 
             List<Comment> mergedComments = new ArrayList<>(topLevelComments);
             mergedComments.addAll(previewReplies);
             Map<Long, User> authorMap = buildAuthorMap(mergedComments);
             Set<Integer> likedSet = buildLikedSet(mergedComments);
 
+            Map<Integer, List<Comment>> previewReplyMap = previewReplies.stream()
+                    .collect(Collectors.groupingBy(Comment::getRootCommentId, LinkedHashMap::new, Collectors.toList()));
+
             List<CommentVO> result = topLevelComments.stream()
                     .map(comment -> {
                         CommentVO vo = toVO(comment, authorMap, likedSet);
-                        vo.setReplyCount(commentMapper.countRepliesByRootCommentId(comment.getCommentId()));
+                        vo.setReplyCount(replyCountMap.getOrDefault(comment.getCommentId(), 0));
                         vo.setRootCommentId(comment.getCommentId());
-                        List<CommentVO> previewVOs = previewReplies.stream()
-                                .filter(reply -> Objects.equals(reply.getRootCommentId(), comment.getCommentId()))
+                        List<CommentVO> previewVOs = previewReplyMap.getOrDefault(comment.getCommentId(), Collections.emptyList()).stream()
                                 .map(reply -> {
                                     CommentVO replyVO = toVO(reply, authorMap, likedSet);
                                     replyVO.setRootCommentId(comment.getCommentId());

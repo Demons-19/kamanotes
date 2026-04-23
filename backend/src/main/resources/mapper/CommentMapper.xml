@@ -95,13 +95,31 @@
           AND comment_id != #{rootCommentId}
         <choose>
             <when test="sort == 'desc'">
-                ORDER BY created_at DESC
+                ORDER BY created_at DESC, comment_id DESC
             </when>
             <otherwise>
-                ORDER BY created_at ASC
+                ORDER BY created_at ASC, comment_id ASC
             </otherwise>
         </choose>
         LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+
+    <select id="findPreviewRepliesByRootCommentIds" resultMap="commentMap">
+        SELECT comment_id, root_comment_id, note_id, author_id, parent_id, reply_to_user_id, content,
+               like_count, reply_count, created_at, updated_at
+        FROM (
+            SELECT c.comment_id, c.root_comment_id, c.note_id, c.author_id, c.parent_id, c.reply_to_user_id, c.content,
+                   c.like_count, c.reply_count, c.created_at, c.updated_at,
+                   ROW_NUMBER() OVER (PARTITION BY c.root_comment_id ORDER BY c.created_at ASC, c.comment_id ASC) AS rn
+            FROM comment c
+            WHERE c.root_comment_id IN
+            <foreach collection="rootCommentIds" item="rootCommentId" open="(" separator="," close=")">
+                #{rootCommentId}
+            </foreach>
+              AND c.comment_id != c.root_comment_id
+        ) t
+        WHERE t.rn &lt;= #{limitPerRoot}
+        ORDER BY t.root_comment_id ASC, t.created_at ASC, t.comment_id ASC
     </select>
 
     <select id="countRepliesByRootCommentId" resultType="int">
@@ -109,6 +127,27 @@
         FROM comment
         WHERE root_comment_id = #{rootCommentId}
           AND comment_id != #{rootCommentId}
+    </select>
+
+    <select id="countRepliesByRootCommentIds" resultMap="commentMap">
+        SELECT NULL AS comment_id,
+               root_comment_id,
+               NULL AS note_id,
+               NULL AS author_id,
+               NULL AS parent_id,
+               NULL AS reply_to_user_id,
+               NULL AS content,
+               NULL AS like_count,
+               COUNT(*) AS reply_count,
+               NULL AS created_at,
+               NULL AS updated_at
+        FROM comment
+        WHERE root_comment_id IN
+        <foreach collection="rootCommentIds" item="rootCommentId" open="(" separator="," close=")">
+            #{rootCommentId}
+        </foreach>
+          AND comment_id != root_comment_id
+        GROUP BY root_comment_id
     </select>
 
     <select id="findByQueryParam" resultMap="commentMap">
