@@ -76,6 +76,10 @@ public interface NoteMapper {
                                 @Param("limit") int limit,
                                 @Param("offset") int offset);
 
+    List<Note> searchNotesByTitleAndContentLike(@Param("keyword") String keyword,
+                                                @Param("limit") int limit,
+                                                @Param("offset") int offset);
+
     int batchUpdateLikeCount(@Param("list") List<Note> notes);
 
     int batchUpdateCollectCount(@Param("list") List<Note> notes);

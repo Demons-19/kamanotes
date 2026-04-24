@@ -50,4 +50,12 @@ public class SearchController {
             @RequestParam(defaultValue = "20") @Min(1) Integer pageSize) {
         return searchService.searchNotesByTag(keyword, tag, page, pageSize);
     }
+
+    @GetMapping("/notes/like")
+    public ApiResponse<List<NoteVO>> searchNotesByLike(
+            @RequestParam String keyword,
+            @RequestParam(defaultValue = "1") @Min(1) Integer page,
+            @RequestParam(defaultValue = "20") @Min(1) Integer pageSize) {
+        return searchService.searchNotesByLike(keyword, page, pageSize);
+    }
 }

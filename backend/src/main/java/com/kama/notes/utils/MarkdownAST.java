@@ -12,15 +12,18 @@ import java.util.List;
 
 @Getter
 public class MarkdownAST {
+    private static final Parser PARSER = Parser.builder().build();
+
     private final Document markdownAST;
     private final String markdownText;
 
     // 构造函数：初始化并解析 Markdown 文本
     public MarkdownAST(String markdownText) {
-        this.markdownText = markdownText;
+        this(markdownText, PARSER);
+    }
 
-        // 创建解析器实例
-        Parser parser = Parser.builder().build();
+    public MarkdownAST(String markdownText, Parser parser) {
+        this.markdownText = markdownText;
         // 解析 Markdown 文本生成 AST
         this.markdownAST = parser.parse(markdownText);
     }
@@ -104,7 +107,7 @@ public class MarkdownAST {
     }
 
     // 判断 Markdown 文本中是否包含图片
-    private boolean hasImages() {
+    public boolean hasImages() {
         return !extractImages().isEmpty();
     }
 }

@@ -314,6 +314,21 @@
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
+    <!-- 按问题标题 + 笔记内容模糊匹配搜索 -->
+    <select id="searchNotesByTitleAndContentLike" resultType="com.kama.notes.model.entity.Note">
+        SELECT
+            n.*
+        FROM note n
+        INNER JOIN question q ON q.question_id = n.question_id
+        WHERE n.status = 1
+          AND (
+                n.content LIKE CONCAT('%', #{keyword}, '%')
+                OR q.title LIKE CONCAT('%', #{keyword}, '%')
+          )
+        ORDER BY n.created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
     <!-- 根据标签搜索笔记 -->
     <select id="searchNotesByTag" resultType="com.kama.notes.model.entity.Note">
         SELECT DISTINCT

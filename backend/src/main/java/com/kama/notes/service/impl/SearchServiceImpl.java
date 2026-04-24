@@ -60,6 +60,7 @@ public class SearchServiceImpl implements SearchService {
     private static final String NOTE_FULLTEXT_SEARCH_CACHE_KEY = "search:note:fulltext:%s:%d:%d";
     private static final String USER_SEARCH_CACHE_KEY = "search:user:%s:%d:%d";
     private static final String NOTE_TAG_SEARCH_CACHE_KEY = "search:note:tag:%s:%s:%d:%d";
+    private static final String NOTE_LIKE_SEARCH_CACHE_KEY = "search:note:like:%s:%d:%d";
     private static final long CACHE_EXPIRE_TIME = 30; // 分钟
 
     @Override
@@ -153,6 +154,29 @@ public class SearchServiceImpl implements SearchService {
         }
     }
 
+    @Override
+    public ApiResponse<List<NoteVO>> searchNotesByLike(String keyword, int page, int pageSize) {
+        try {
+            String cacheKey = String.format(NOTE_LIKE_SEARCH_CACHE_KEY, keyword, page, pageSize);
+
+            List<Note> cachedNotes = (List<Note>) redisTemplate.opsForValue().get(cacheKey);
+            if (cachedNotes != null) {
+                return ApiResponseUtil.success("搜索成功", buildNoteVOList(cachedNotes));
+            }
+
+            // 模糊匹配不需要分词预处理，保留原始关键词
+            int offset = (page - 1) * pageSize;
+            List<Note> notes = noteMapper.searchNotesByTitleAndContentLike(keyword, pageSize, offset);
+
+            redisTemplate.opsForValue().set(cacheKey, notes, CACHE_EXPIRE_TIME, TimeUnit.MINUTES);
+
+            return ApiResponseUtil.success("搜索成功", buildNoteVOList(notes));
+        } catch (Exception e) {
+            log.error("模糊搜索笔记失败", e);
+            return ApiResponseUtil.error("搜索失败");
+        }
+    }
+
     private List<NoteVO> buildNoteVOList(List<Note> notes) {
         if (notes == null || notes.isEmpty()) {
             return Collections.emptyList();
@@ -208,9 +232,14 @@ public class SearchServiceImpl implements SearchService {
         userActions.setIsCollected(collected.contains(note.getNoteId()));
         vo.setUserActions(userActions);
 
-        if (MarkdownUtil.needCollapsed(note.getContent())) {
-            vo.setNeedCollapsed(true);
-            vo.setDisplayContent(MarkdownUtil.extractIntroduction(note.getContent()));
+        // 优化：避免 Markdown 重复解析
+        String content = note.getContent();
+        if (content != null && !content.isEmpty()) {
+            boolean needCollapsed = MarkdownUtil.needCollapsed(content);
+            vo.setNeedCollapsed(needCollapsed);
+            if (needCollapsed) {
+                vo.setDisplayContent(MarkdownUtil.extractIntroduction(content));
+            }
         }
 
         return vo;

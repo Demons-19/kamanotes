@@ -48,4 +48,14 @@ public interface SearchService {
      * @return 笔记列表
      */
     ApiResponse<List<Note>> searchNotesByTag(String keyword, String tag, int page, int pageSize);
+
+    /**
+     * 按问题标题 + 笔记内容模糊匹配搜索
+     *
+     * @param keyword 关键词
+     * @param page 页码
+     * @param pageSize 每页大小
+     * @return 笔记列表
+     */
+    ApiResponse<List<NoteVO>> searchNotesByLike(String keyword, int page, int pageSize);
 } 
